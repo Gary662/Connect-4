@@ -2,16 +2,18 @@
 
 public class Player
 {
-    public string Name { get; set; }
-    public char Token { get; set; }
+    public string Name { get; }
+    public char Token { get; }
+    public ConsoleColor TokenColor { get; }
 
-    public Player(string name, char token)
+    public Player(string name, char token, ConsoleColor tokenColor)
     {
         Name = name;
         Token = token;
+        TokenColor = tokenColor;
     }
 
-    public virtual int MakeMove()
+    public virtual int MakeMove(Board board)
     {
         Console.WriteLine($"{Name}'s turn ({Token}): ");
         return int.Parse(Console.ReadLine());
@@ -20,15 +22,20 @@ public class Player
 
 public class HumanPlayer : Player
 {
-    public HumanPlayer(string name, char token) : base(name, token) { }
+    public HumanPlayer(string name, char token, ConsoleColor tokenColor) : base(name, token, tokenColor) { }
 
-    public override int MakeMove()
+    public override int MakeMove(Board board)
     {
         int column;
         do
         {
             Console.Write($"{Name}'s turn ({Token}): ");
-        } while (!int.TryParse(Console.ReadLine(), out column) || column < 1 || column > 7);
+            if (!int.TryParse(Console.ReadLine(), out column) || column < 1 || column > 7)
+            {
+                Console.WriteLine("Invalid input. Please enter a number between 1 and 7.");
+                continue;
+            }
+        } while (column < 1 || column > 7 || board.IsColumnFull(column));
 
         return column;
     }
@@ -36,13 +43,60 @@ public class HumanPlayer : Player
 
 public class ComputerPlayer : Player
 {
-    public ComputerPlayer(string name, char token) : base(name, token) { }
+    public ComputerPlayer(string name, char token, ConsoleColor tokenColor) : base(name, token, tokenColor) { }
 
-    public override int MakeMove()
+    public override int MakeMove(Board board)
     {
-        // Example: Random move for computer player
+        // Check if AI can win in the next move
+        for (int column = 1; column <= 7; column++)
+        {
+            Board testBoard = new Board();
+            testBoard.CopyGrid(board);
+            if (!testBoard.IsColumnFull(column))
+            {
+                testBoard.PlaceToken(Token, column);
+                if (testBoard.CheckForWin(Token))
+                {
+                    return column;
+                }
+            }
+        }
+
+        // Check if opponent can win in the next move, and block them
+        char opponentToken = Token == 'X' ? 'O' : 'X';
+        for (int column = 1; column <= 7; column++)
+        {
+            Board testBoard = new Board();
+            testBoard.CopyGrid(board);
+            if (!testBoard.IsColumnFull(column))
+            {
+                testBoard.PlaceToken(opponentToken, column);
+                if (testBoard.CheckForWin(opponentToken))
+                {
+                    return column;
+                }
+            }
+        }
+
+        // Otherwise, prioritize center and sides
+        int[] preferredColumns = { 4, 3, 5, 2, 6, 1, 7 };
+        foreach (int column in preferredColumns)
+        {
+            if (!board.IsColumnFull(column))
+            {
+                return column;
+            }
+        }
+
+        // If all else fails, make a random move
         Random rand = new Random();
-        return rand.Next(1, 8); // Random column between 1 and 7
+        int randomColumn;
+        do
+        {
+            randomColumn = rand.Next(1, 8);
+        } while (board.IsColumnFull(randomColumn));
+
+        return randomColumn;
     }
 }
 
@@ -69,16 +123,29 @@ public class Board
 
     public void DisplayBoard()
     {
+        Console.Clear(); // Clear console before displaying the board
         Console.WriteLine(" 1 2 3 4 5 6 7");
         for (int i = 0; i < 6; i++)
         {
             Console.Write("|");
             for (int j = 0; j < 7; j++)
             {
+                Console.ForegroundColor = GetTokenColor(grid[i, j]);
                 Console.Write($"{grid[i, j]}|");
+                Console.ResetColor();
             }
             Console.WriteLine();
         }
+    }
+
+    private ConsoleColor GetTokenColor(char token)
+    {
+        return token switch
+        {
+            'X' => ConsoleColor.Red,
+            'O' => ConsoleColor.Blue,
+            _ => ConsoleColor.White,
+        };
     }
 
     public bool IsColumnFull(int column)
@@ -89,26 +156,19 @@ public class Board
     public bool IsGameOver()
     {
         // Check for a win
-        if (CheckForWin('X'))
+        if (CheckForWin('X') || CheckForWin('O'))
         {
-            Console.WriteLine("Player 1 wins!");
-            return true;
-        }
-        else if (CheckForWin('O'))
-        {
-            Console.WriteLine("Player 2 wins!");
             return true;
         }
         // Check for a draw
         else if (IsBoardFull())
         {
-            Console.WriteLine("It's a draw!");
             return true;
         }
         return false;
     }
 
-    private bool CheckForWin(char token)
+    public bool CheckForWin(char token)
     {
         // Check horizontally
         for (int row = 0; row < 6; row++)
@@ -191,9 +251,15 @@ public class Board
             if (grid[i, column - 1] == ' ')
             {
                 grid[i, column - 1] = token;
-                break;
+                return; // Return after placing the token to avoid further checks
             }
         }
+        Console.WriteLine("Column is full. Choose another column.");
+    }
+
+    public void CopyGrid(Board originalBoard)
+    {
+        Array.Copy(originalBoard.grid, grid, originalBoard.grid.Length);
     }
 }
 
@@ -217,7 +283,7 @@ public class GameController
         while (!board.IsGameOver())
         {
             board.DisplayBoard();
-            int column = currentPlayer.MakeMove();
+            int column = currentPlayer.MakeMove(board);
 
             if (board.IsColumnFull(column))
             {
@@ -226,6 +292,28 @@ public class GameController
             }
 
             board.PlaceToken(currentPlayer.Token, column);
+
+            // Check for a win after each move
+            if (board.IsGameOver())
+            {
+                // Display the final state of the board
+                board.DisplayBoard();
+
+                if (board.CheckForWin(player1.Token))
+                {
+                    Console.WriteLine($"{player1.Name} wins!");
+                }
+                else if (board.CheckForWin(player2.Token))
+                {
+                    Console.WriteLine($"{player2.Name} wins!");
+                }
+                else
+                {
+                    Console.WriteLine("It's a draw!");
+                }
+                break;
+            }
+
             currentPlayer = (currentPlayer == player1) ? player2 : player1;
         }
     }
@@ -235,8 +323,48 @@ class Program
 {
     static void Main(string[] args)
     {
-        Player player1 = new HumanPlayer("Player 1", 'X');
-        Player player2 = new HumanPlayer("Player 2", 'O');
+        Console.WriteLine("Welcome to Connect 4!");
+
+        // Player 1
+        Console.WriteLine("Choose the type of Player 1: (1) Human or (2) AI");
+        int player1Choice = int.Parse(Console.ReadLine());
+        Player player1;
+
+        if (player1Choice == 1)
+        {
+            Console.WriteLine("Enter name for Player 1:");
+            string player1Name = Console.ReadLine();
+            player1 = new HumanPlayer(player1Name, 'X', ConsoleColor.Red);
+        }
+        else if (player1Choice == 2)
+        {
+            player1 = new ComputerPlayer("Player 1 (AI)", 'X', ConsoleColor.Red);
+        }
+        else
+        {
+            throw new ArgumentException("Invalid player type selected for Player 1.");
+        }
+
+        // Player 2
+        Console.WriteLine("Choose the type of Player 2: (1) Human or (2) AI");
+        int player2Choice = int.Parse(Console.ReadLine());
+        Player player2;
+
+        if (player2Choice == 1)
+        {
+            Console.WriteLine("Enter name for Player 2:");
+            string player2Name = Console.ReadLine();
+            player2 = new HumanPlayer(player2Name, 'O', ConsoleColor.Blue);
+        }
+        else if (player2Choice == 2)
+        {
+            player2 = new ComputerPlayer("Player 2 (AI)", 'O', ConsoleColor.Blue);
+        }
+        else
+        {
+            throw new ArgumentException("Invalid player type selected for Player 2.");
+        }
+
         Board board = new Board();
         GameController gameController = new GameController(player1, player2, board);
 
