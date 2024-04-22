@@ -325,10 +325,12 @@ namespace ConnectFour
 
                         if (board.CheckForWin(player1!.Token)) // Use ! to indicate that player1 is not null
                         {
+                            Console.WriteLine("It's a Connect 4!");
                             Console.WriteLine($"{player1!.Name} wins!"); // Use ! to indicate that player1 is not null
                         }
                         else if (board.CheckForWin(player2!.Token)) // Use ! to indicate that player2 is not null
                         {
+                            Console.WriteLine("It's a Connect 4!");
                             Console.WriteLine($"{player2!.Name} wins!"); // Use ! to indicate that player2 is not null
                         }
                         else
@@ -352,7 +354,7 @@ namespace ConnectFour
         {
             // Player 1
             Console.WriteLine("Choose the type of Player 1: (1) Human or (2) AI");
-            int player1Choice = int.Parse(Console.ReadLine()!);
+            int player1Choice = GetValidPlayerChoice();
 
             if (player1Choice == 1)
             {
@@ -371,7 +373,7 @@ namespace ConnectFour
 
             // Player 2
             Console.WriteLine("Choose the type of Player 2: (1) Human or (2) AI");
-            int player2Choice = int.Parse(Console.ReadLine()!);
+            int player2Choice = GetValidPlayerChoice();
 
             if (player2Choice == 1)
             {
@@ -402,6 +404,17 @@ namespace ConnectFour
             }
 
             return input == "yes";
+        }
+
+        // Method to get a valid player choice
+        private static int GetValidPlayerChoice()
+        {
+            int choice;
+            while (!int.TryParse(Console.ReadLine(), out choice) || (choice != 1 && choice != 2))
+            {
+                Console.WriteLine("Invalid input. Please enter 1 or 2.");
+            }
+            return choice;
         }
     }
 
